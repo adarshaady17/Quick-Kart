@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 
-const UserSchema=new mongoose.Schema(
+const userSchema=new mongoose.Schema(
     {
         name:{
             type:String,
@@ -8,23 +8,19 @@ const UserSchema=new mongoose.Schema(
         },
         email:{
             type:String,
-            required:true
-        },
-        phone:{
-            type: Number,
-            required:true
+            required:true,
+            unique:true
         },
         password:{
             type:String,
             required:true
         },
-        role:{
-            type:String,
-            enum:["admin","user","delivery-agent"],
-            required:true
+        cardItems:{
+            type:Object,
+            default:{}
         }
     },{
-        timestamps:true,
+        minimize:false,
     }
 )
-export const User = mongoose.model("User", UserSchema);
+export const User = mongoose.models.user || mongoose.model("user", userSchema);

@@ -1,15 +1,10 @@
-import Product from "../models/product";
+import Product from "../models/product.js";
 import {v2 as cloudinary} from "cloudinary";
 
 export const addProduct=async(req,res)=>{
     try{
-        const {name,description,price,offerPrice}=req.body;
-        if(!name||!description||!price||!offerPrice){
-            return res.status(400).json({
-                message:"Something is missing",
-                success:false
-            })
-        }
+        let productData=JSON.parse(req.body.productData);
+
 
         const images=req.files
         let imagesUrl=await Promise.all(
@@ -22,13 +17,8 @@ export const addProduct=async(req,res)=>{
         )
 
         await Product.create({
-            name,
-            description,
-            price,
-            offerPrice,
-            image:imagesUrl,
-            category,
-            inStock,
+            ...productData,
+            image:imagesUrl  
         });
         return res.status(201).json({
             message:"Account create successfully",
@@ -36,7 +26,8 @@ export const addProduct=async(req,res)=>{
         })
 
     }catch(error){
-        console.log(error);
+        console.log(error.message);
+        res.json({success:false,message:error.message});
     }
 }
 
@@ -46,15 +37,16 @@ export const productList=async(req,res)=>{
         if(!products){
             return res.status(404).json({
                 message:"Products not found",
-                success:false,
+                success:false
             });
         };
         return res.status(200).json({
             products,
-            success:true,
+            success:true
         });
     }catch(error){
-        console.log(error);
+        console.log(error.message);
+        res.json({success:false,message:error.message});
     }
 }
 
@@ -73,7 +65,8 @@ export const productById=async(req,res)=>{
             success:true,
         });
     }catch(error){
-        console.log(error);
+        console.log(error.message);
+        res.json({success:false,message:error.message});
     }
 }
 
@@ -86,6 +79,7 @@ export const changeStock=async(req,res)=>{
             success:true,
         })
     }catch(error){
-        console.log(error);
+        console.log(error.message);
+        res.json({success:false,message:error.message});
     }
 }
