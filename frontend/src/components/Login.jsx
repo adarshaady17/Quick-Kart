@@ -1,5 +1,6 @@
 import React from 'react'
 import { useAppContext } from '../context/AppContext';
+import { Link } from 'react-router-dom';
  
 
 const Login = () => {
@@ -51,6 +52,11 @@ const Login = () => {
             <button className="bg-indigo-500 hover:bg-indigo-600 transition-all text-white w-full py-2 rounded-md cursor-pointer">
                 {state === "register" ? "Create Account" : "Login"}
             </button>
+            <Link to="/seller">
+                <button className="bg-indigo-300 hover:bg-indigo-600 transition-all m-auto text-white w-full py-2 rounded-md cursor-pointer">
+                           For Seller
+                </button>
+            </Link>
          </form> 
     </div>  
   )
