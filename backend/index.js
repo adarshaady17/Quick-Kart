@@ -17,14 +17,26 @@ dotenv.config({});
 connectDB();
 await connectCloudinary();
 
-app.use(express.json());
-app.use(express.urlencoded({extended:true}));
+// Add these before your routes
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Increase timeout to 10 minutes (adjust as needed)
+app.use((req, res, next) => {
+  req.setTimeout(10 * 60 * 1000); // 10 minutes
+  res.setTimeout(10 * 60 * 1000); // 10 minutes
+  next();
+});
+
+// app.use(express.json());
+// app.use(express.urlencoded({extended:true}));
 app.use(cookieParser());
 
 app.use(cors({
-    origin: "http://localhost:5173", 
-    credentials: true,              
+  origin: "http://localhost:5173",
+  credentials: true
 }));
+
 
 const PORT=process.env.PORT || 5000;
 

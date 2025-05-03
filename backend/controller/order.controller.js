@@ -1,60 +1,89 @@
-import Order from "../models/order.js";
+import Order from "../models/Order.js";
 import Product from "../models/product.js";
+import stripe from "stripe";
 
-export const placeOrderCOD = async (req,res)=>{
-    try{
-        const {userId,items,address}=req.body;
-        if(!address||items.length === 0){
-            return res.json({success:false,message:"Invalid data"});
-        }
-        // calculate amount
-        let amount =await items.reduce(async(acc,item)=>{
-            const product =await Product.findById(item.product);
-            return (await acc)+product.offerPrice*item.quantity;
-        },0);
+export const placeOrderCOD = async (req, res) => {
+  try {
+    const { userId, items, address } = req.body;
 
-        // Add Tax charge
-
-        amount += Math.floor(amount*0.02);
-
-        await Order.create({
-            userId,
-            items,
-            amount,
-            address,
-            paymentType: "COD",
-        });
-
-        return res.json({success:true,message:"Order Placed Successfully"});
-    }catch(error){
-        console.log(error.message);
-        return res.json({success:false,message:error.message});
+    if (!address || items.length === 0) {
+      return res.json({ 
+        success: false,
+        message: "Address and items are required",
+      });
     }
-}
+    let amount = await items.reduce(async (acc, item) => {
+      const product = await Product.findById(item.product);
+      return (await acc) + product.offerPrice * item.quantity;
+    }, 0);
+    amount += Math.floor(amount * 0.02);
 
-//get order by user ID
-export const getUserOrders=async(req,res)=>{
-    try{
-        const {userId}=req.body;
-        const orders=await Order.find({
-            userId,
-            $or:[{paymentType:"COD"},{isPaid:true}]
-        }).populate("items.product address").sort({createdAt:-1});
-        res.json({success:true,orders});
-    }catch(error){
-        console.log(error.message);
-        res.json({success:false,message:error.message});
-    }
-}
+    await Order.create({
+      userId,
+      items,
+      address,
+      amount,
+      paymentType: "COD",
+    });
 
-//get all orders
-export const getAllOrders=async(req,res)=>{
-    try{
-        const orders=await Order.find({
-            $or:[{paymentType:"COD"},{isPaid:true}]
-        }).populate("items.product address").sort({createdAt:-1});
-        res.json({success:true,orders});
-    }catch(error){
-        res.json({success:false,message:error.message});
-    }
-}
+    res.json({
+      success: true,
+      message: "Order placed successfully",
+    });
+  } catch (error) {
+    console.log(error.message);
+    res.json({
+      success: false,
+      message: "Error in placing order",
+      error: error.message,
+    });
+  }
+};
+
+export const getUserOrders = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const orders = await Order.find({
+      userId,
+      $or: [{ paymentType: "COD" }, { isPaid: true }],
+    })
+      .populate({
+        path: "items.product",
+        select: "name image category offerPrice",
+      })
+      .populate("address")
+      .sort({ createdAt: -1 });
+    res.json({
+      success: true,
+      orders: orders,
+    });
+  } catch (error) {
+    console.log(error.message);
+    res.json({
+      success: false,
+      message: "Error in placing order",
+      error: error.message,
+    });
+  }
+};
+
+export const getAllOrders = async (req, res) => {
+  try {
+    const orders = await Order.find({
+      $or: [{ paymentType: "COD" }, { isPaid: true }],
+    })
+      .populate("items.product address")
+      .sort({ createdAt: -1 });
+    res.json({
+      success: true,
+      orders: orders,
+    });
+  } catch (error) {
+    console.log(error.message);
+    res.json({
+      success: false,
+      message: "Error in placing order",
+      error: error.message,
+    });
+  }
+};
