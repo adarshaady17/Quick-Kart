@@ -1,28 +1,30 @@
 import mongoose from "mongoose";
 
 const userSchema = new mongoose.Schema({
-    name : {
+    name: {
         type: String,
         required: true
     },
-
-    email : {
+    email: {
         type: String,
         required: true,
         unique: true
-    },
-
-    password : {
+    }, 
+    password: {
         type: String,
         required: true
     },
-
-    cartItems : {
+    cartItems: {
         type: Object,
         default: {}
     },
-}, {minimize: false})
+    otp: String,          // Stores the OTP code
+    otpExpiry: Date,      // When OTP expires
+    isVerified: {         // Tracks email verification
+        type: Boolean,
+        default: false
+    }
+}, { minimize: false });
 
 const User = mongoose.models.user || mongoose.model('User', userSchema);
-
 export default User;

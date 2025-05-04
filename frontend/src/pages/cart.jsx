@@ -30,14 +30,12 @@ function Cart() {
       product.quantity = cartItems[key];
       tempArray.push(product);
     }
-
     setCartArray(tempArray);
   };
 
   const fetchAddresses = async () => {
     try {
       const { data } = await axios.get("/api/v1/address/get");
-
       if (data.success) {
         setAddresses(data.addresses);
         if (data.addresses.length > 0) {
@@ -52,40 +50,98 @@ function Cart() {
     }
   };
 
+  const loadRazorpayScript = (src) => {
+    return new Promise((resolve) => {
+      const script = document.createElement("script");
+      script.src = src;
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
+  };
+
+  const displayRazorpay = async () => {
+    try {
+      const res = await loadRazorpayScript("https://checkout.razorpay.com/v1/checkout.js");
+      if (!res) {
+        toast.error("Failed to load Razorpay SDK");
+        return;
+      }
+
+      const { data } = await axios.post("/api/v1/order/razorpay", {
+        items: cartArray.map((item) => ({ product: item._id, quantity: item.quantity })),
+        address: selectedAddress._id,
+      });
+
+      if (!data.success) {
+        toast.error(data.message);
+        return;
+      }
+
+      const options = {
+        key: data.key,
+        amount: data.order.amount,
+        currency: data.order.currency,
+        name: "Your Store Name",
+        description: "Order Payment",
+        image: "https://your-store-logo.png",
+        order_id: data.order.id,
+        handler: async function (response) {
+          const verifyResponse = await axios.post("/api/v1/order/razorpay/verify", {
+            razorpay_payment_id: response.razorpay_payment_id,
+            razorpay_order_id: response.razorpay_order_id,
+            razorpay_signature: response.razorpay_signature,
+            orderId: data.orderId
+          });
+
+          if (verifyResponse.data.success) {
+            toast.success("Payment Successful!");
+            setCartItems({});
+            navigate("/my-orders");
+          } else {
+            toast.error("Payment verification failed");
+          }
+        },
+        prefill: {
+          name: user.name,
+          email: user.email,
+          contact: user.phone || ""
+        },
+        theme: {
+          color: "#3399cc"
+        }
+      };
+
+      const rzp = new window.Razorpay(options);
+      rzp.open();
+    } catch (error) {
+      console.log(error);
+      toast.error("Something went wrong with payment");
+    }
+  };
+
   const placeOrder = async () => {
     try {
-      if(!selectedAddress) {
+      if (!selectedAddress) {
         toast.error("Please select an address.");
         return;
-      } 
+      }
 
-      if (paymentOption === 'COD') {
-        const { data } = await axios.post("/api/v1/order/cod",{
-          userId: user._id,
-          items: cartArray.map((item)=>({product: item._id, quantity: item.quantity})),
+      if (paymentOption === "COD") {
+        const { data } = await axios.post("/api/v1/order/cod", {
+          items: cartArray.map((item) => ({ product: item._id, quantity: item.quantity })),
           address: selectedAddress._id,
-        })
+        });
 
         if (data.success) {
           toast.success(data.message);
           setCartItems({});
-          console.log(data);
           navigate("/my-orders");
         } else {
           toast.error(data.message);
         }
       } else {
-        const { data } = await axios.post('/api/v1/order/stripe', {
-          userId: user._id,
-          items: cartArray.map((item)=>({product: item._id, quantity: item.quantity})),
-          address: selectedAddress._id,
-        }) 
-
-        if(data.success){
-          window.location.replace(data.url);
-        } else {
-          toast.error('hellow error');
-        }
+        await displayRazorpay();
       }
     } catch (error) {
       console.log(error.message);
@@ -107,10 +163,11 @@ function Cart() {
 
   return products.length > 0 && cartItems ? (
     <div className="flex flex-col md:flex-row mt-16">
+      {/* Left side - Cart items */}
       <div className="flex-1 max-w-4xl">
         <h1 className="text-3xl font-medium mb-6">
           Shopping Cart{" "}
-          <span className="text-sm text-indigo-500 "> {getCartCount()} Items</span>
+          <span className="text-sm text-primary"> {getCartCount()} Items</span>
         </h1>
 
         <div className="grid grid-cols-[2fr_1fr_1fr] text-gray-500 text-base font-medium pb-3">
@@ -127,9 +184,7 @@ function Cart() {
             <div className="flex items-center md:gap-6 gap-3">
               <div
                 onClick={() => {
-                  navigate(
-                    `/products/${product.category.toLowerCase()}/${product._id}`
-                  );
+                  navigate(`/products/${product.category.toLowerCase()}/${product._id}`);
                   scrollTo(0, 0);
                 }}
                 className="cursor-pointer w-24 h-24 flex items-center justify-center border border-gray-300 rounded"
@@ -143,26 +198,18 @@ function Cart() {
               <div>
                 <p className="hidden md:block font-semibold">{product.name}</p>
                 <div className="font-normal text-gray-500/70">
-                  <p>
-                    Weight: <span>{product.weight || "N/A"}</span>
-                  </p>
+                  <p>Weight: <span>{product.weight || "N/A"}</span></p>
                   <div className="flex items-center">
                     <p>Qty:</p>
                     <select
                       value={cartItems[product._id]}
-                      onChange={(e) =>
-                        updateCartItem(product._id, Number(e.target.value))
-                      }
+                      onChange={(e) => updateCartItem(product._id, Number(e.target.value))}
                       className="outline-none"
                     >
-                      {Array(
-                        cartItems[product._id] > 9 ? cartItems[product._id] : 9
-                      )
+                      {Array(cartItems[product._id] > 9 ? cartItems[product._id] : 9)
                         .fill("")
                         .map((_, index) => (
-                          <option key={index} value={index + 1}>
-                            {index + 1}
-                          </option>
+                          <option key={index} value={index + 1}>{index + 1}</option>
                         ))}
                     </select>
                   </div>
@@ -190,7 +237,7 @@ function Cart() {
             navigate("/products");
             scrollTo(0, 0);
           }}
-          className="group cursor-pointer flex items-center mt-8 gap-2 text-indigo-500  font-medium"
+          className="group cursor-pointer flex items-center mt-8 gap-2 text-primary font-medium"
         >
           <img
             src={assets.arrow_right_icon_colored}
@@ -201,7 +248,7 @@ function Cart() {
         </button>
       </div>
 
-      {/* Right Side */}
+      {/* Right Side - Order Summary */}
       <div className="max-w-[360px] w-full bg-gray-100/40 p-5 max-md:mt-16 border border-gray-300/70">
         <h2 className="text-xl md:text-xl font-medium">Order Summary</h2>
         <hr className="border-gray-300 my-5" />
@@ -210,19 +257,18 @@ function Cart() {
           <p className="text-sm font-medium uppercase">Delivery Address</p>
           <div className="relative flex justify-between items-start mt-2">
             <p className="text-gray-500">
-              {" "}
               {selectedAddress
                 ? `${selectedAddress.street}, ${selectedAddress.city}, ${selectedAddress.state}, ${selectedAddress.country}`
                 : "No address found"}
             </p>
             <button
               onClick={() => setShowAddress(!showAddress)}
-              className="hover:underline text-indigo-500   cursor-pointer"
+              className="hover:underline text-primary cursor-pointer"
             >
               Change
             </button>
             {showAddress && (
-              <div className="absolute top-8 py-1 bg-white border border-indigo-500 text-sm w-full">
+              <div className="absolute top-8 py-1 bg-white border border-gray-300 text-sm w-full">
                 {addresses.map((address, index) => (
                   <p
                     key={index}
@@ -232,17 +278,15 @@ function Cart() {
                     }}
                     className="text-gray-500 p-2 hover:bg-gray-100"
                   >
-                    {" "}
-                    {address.street}, {address.city}, {address.state},{" "}
-                    {address.country}{" "}
+                    {address.street}, {address.city}, {address.state}, {address.country}
                   </p>
                 ))}
-
                 <p
                   onClick={() => {
-                    navigate("/add-address"), setShowAddress(false);
+                    navigate("/add-address");
+                    setShowAddress(false);
                   }}
-                  className="text-indigo-500  text-center cursor-pointer p-2 hover:bg-primary/10"
+                  className="text-primary text-center cursor-pointer p-2 hover:bg-primary/10"
                 >
                   Add address
                 </p>
@@ -251,10 +295,9 @@ function Cart() {
           </div>
 
           <p className="text-sm font-medium uppercase mt-6">Payment Method</p>
-
           <select
             onChange={(e) => setPaymentOption(e.target.value)}
-            className="w-full border border-indigo-500 bg-white px-3 py-2 mt-2 outline-none"
+            className="w-full border border-gray-300 bg-white px-3 py-2 mt-2 outline-none"
           >
             <option value="COD">Cash On Delivery</option>
             <option value="Online">Online Payment</option>
@@ -266,32 +309,25 @@ function Cart() {
         <div className="text-gray-500 mt-4 space-y-2">
           <p className="flex justify-between">
             <span>Price</span>
-            <span>
-              {" "}
-              {currency} {getCartAmount()}
-            </span>
+            <span>{currency} {getCartAmount()}</span>
           </p>
           <p className="flex justify-between">
             <span>Shipping Fee</span>
-            <span className="text-indigo-500 ">Free</span>
+            <span className="text-green-600">Free</span>
           </p>
           <p className="flex justify-between">
             <span>Tax (2%) :</span>
-            <span>
-              {currency} {(getCartAmount() * 2) / 100}
-            </span>
+            <span>{currency} {(getCartAmount() * 2) / 100}</span>
           </p>
           <p className="flex justify-between text-lg font-medium mt-3">
             <span>Total Amount:</span>
-            <span>
-              {currency} {getCartAmount() + (getCartAmount() * 2) / 100}
-            </span>
+            <span>{currency} {getCartAmount() + (getCartAmount() * 2) / 100}</span>
           </p>
         </div>
 
         <button
           onClick={placeOrder}
-          className="w-full py-3 mt-6 cursor-pointer bg-indigo-500  text-white font-medium hover:bg-indigo-300 transition"
+          className="w-full py-3 mt-6 cursor-pointer bg-primary text-white font-medium hover:bg-primary-dull transition"
         >
           {paymentOption === "COD" ? "Place Order" : "Proceed to checkout"}
         </button>

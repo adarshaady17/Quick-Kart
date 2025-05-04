@@ -1,17 +1,25 @@
 import Order from "../models/Order.js";
+//import User from '../models/User.js'
 import Product from "../models/product.js";
-import stripe from "stripe";
-
 export const placeOrderCOD = async (req, res) => {
   try {
-    const { userId, items, address } = req.body;
+    const { items, address } = req.body;
+    const userId = req.user.id; // Get userId from authenticated user
+
+    if (!userId) {
+      return res.json({
+        success: false,
+        message: "User authentication required",
+      });
+    }
 
     if (!address || items.length === 0) {
-      return res.json({ 
+      return res.json({
         success: false,
         message: "Address and items are required",
       });
     }
+
     let amount = await items.reduce(async (acc, item) => {
       const product = await Product.findById(item.product);
       return (await acc) + product.offerPrice * item.quantity;
@@ -19,7 +27,7 @@ export const placeOrderCOD = async (req, res) => {
     amount += Math.floor(amount * 0.02);
 
     await Order.create({
-      userId,
+      userId, // Now using the authenticated user's ID
       items,
       address,
       amount,
