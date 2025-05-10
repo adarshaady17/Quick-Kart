@@ -1,6 +1,75 @@
-import Order from "../models/Order.js";
-//import User from '../models/User.js'
+import Razorpay from "razorpay";
+import Order from "../models/order.js";
 import Product from "../models/product.js";
+
+export const placeOrderRazor = async (req, res) => {
+  try {
+    const { userId, items, address } = req.body;
+    const { origin } = req.headers;
+
+    if (!userId || !address || items.length === 0) {
+      return res.json({ success: false, message: "Invalid data" });
+    }
+
+
+    let productData = [];
+    let amount = await items.reduce(async (acc, item) => {
+      const product = await Product.findById(item.product);
+      productData.push({
+        name: product.name,
+        price: product.offerPrice,
+        quantity: item.quantity,
+      });
+      return (await acc) + product.offerPrice * item.quantity;
+    }, 0);
+
+    // Add tax (2%)
+    amount += Math.floor(amount * 0.02);
+
+    // Create order in MongoDB
+    const order = await Order.create({
+      userId,
+      items,
+      address,
+      amount,
+      paymentType: "Online",
+    });
+
+    // Initialize Razorpay
+    const razorpay = new Razorpay({
+      key_id: process.env.RAZORPAY_KEY,
+      key_secret: process.env.RAZORPAY_SECRET,
+    });
+
+    // Create payment order in Razorpay
+    const paymentOrder = await razorpay.orders.create({
+      amount: amount * 100, // in paise
+      currency: "INR",
+      receipt: order._id.toString(),
+      notes: {
+        userId,
+        address,
+      },
+    });
+
+    res.json({
+      success: true,
+      orderId: paymentOrder.id,
+      amount: paymentOrder.amount,
+      currency: paymentOrder.currency,
+      receipt: paymentOrder.receipt,
+    });
+  } catch (error) {
+    console.error("Razorpay error:", error.message);
+    res.status(500).json({
+      success: false,
+      message: "Error creating Razorpay order",
+      error: error.message,
+    });
+  }
+};
+
+
 export const placeOrderCOD = async (req, res) => {
   try {
     const { items, address } = req.body;

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useAppContext } from "../context/AppContext";
 import toast from "react-hot-toast";
 import { assets } from "../assets/assets";
+import { loadRazorpay } from "../utils/loadRazorpay";
 
 function Cart() {
   const [showAddress, setShowAddress] = useState(false);
@@ -9,6 +10,11 @@ function Cart() {
   const [addresses, setAddresses] = useState([]);
   const [selectedAddress, setSelectedAddress] = useState(null);
   const [paymentOption, setPaymentOption] = useState("COD");
+  const [isLoading, setIsLoading] = useState(false);
+  const [isAddressLoading, setIsAddressLoading] = useState(false);
+  const [isPlacingOrder, setIsPlacingOrder] = useState(false);
+  const [isCartLoading, setIsCartLoading] = useState(false);
+  
   const {
     getCartCount,
     products,
@@ -24,18 +30,24 @@ function Cart() {
   } = useAppContext();
 
   const getCart = () => {
+    setIsCartLoading(true);
     let tempArray = [];
     for (const key in cartItems) {
       const product = products.find((item) => item._id === key);
-      product.quantity = cartItems[key];
-      tempArray.push(product);
+      if (product) {
+        product.quantity = cartItems[key];
+        tempArray.push(product);
+      }
     }
     setCartArray(tempArray);
+    setIsCartLoading(false);
   };
 
   const fetchAddresses = async () => {
+    setIsAddressLoading(true);
     try {
       const { data } = await axios.get("/api/v1/address/get");
+
       if (data.success) {
         setAddresses(data.addresses);
         if (data.addresses.length > 0) {
@@ -46,89 +58,23 @@ function Cart() {
       }
     } catch (error) {
       console.log(error.message);
-      toast.error("Something went wrong, please try again later.");
-    }
-  };
-
-  const loadRazorpayScript = (src) => {
-    return new Promise((resolve) => {
-      const script = document.createElement("script");
-      script.src = src;
-      script.onload = () => resolve(true);
-      script.onerror = () => resolve(false);
-      document.body.appendChild(script);
-    });
-  };
-
-  const displayRazorpay = async () => {
-    try {
-      const res = await loadRazorpayScript("https://checkout.razorpay.com/v1/checkout.js");
-      if (!res) {
-        toast.error("Failed to load Razorpay SDK");
-        return;
-      }
-
-      const { data } = await axios.post("/api/v1/order/razorpay", {
-        items: cartArray.map((item) => ({ product: item._id, quantity: item.quantity })),
-        address: selectedAddress._id,
-      });
-
-      if (!data.success) {
-        toast.error(data.message);
-        return;
-      }
-
-      const options = {
-        key: data.key,
-        amount: data.order.amount,
-        currency: data.order.currency,
-        name: "Your Store Name",
-        description: "Order Payment",
-        image: "https://your-store-logo.png",
-        order_id: data.order.id,
-        handler: async function (response) {
-          const verifyResponse = await axios.post("/api/v1/order/razorpay/verify", {
-            razorpay_payment_id: response.razorpay_payment_id,
-            razorpay_order_id: response.razorpay_order_id,
-            razorpay_signature: response.razorpay_signature,
-            orderId: data.orderId
-          });
-
-          if (verifyResponse.data.success) {
-            toast.success("Payment Successful!");
-            setCartItems({});
-            navigate("/my-orders");
-          } else {
-            toast.error("Payment verification failed");
-          }
-        },
-        prefill: {
-          name: user.name,
-          email: user.email,
-          contact: user.phone || ""
-        },
-        theme: {
-          color: "#3399cc"
-        }
-      };
-
-      const rzp = new window.Razorpay(options);
-      rzp.open();
-    } catch (error) {
-      console.log(error);
-      toast.error("Something went wrong with payment");
+      toast.error("Failed to load addresses");
+    } finally {
+      setIsAddressLoading(false);
     }
   };
 
   const placeOrder = async () => {
-    try {
-      if (!selectedAddress) {
-        toast.error("Please select an address.");
-        return;
-      }
+    if (!selectedAddress) {
+      toast.error("Please select an address.");
+      return;
+    }
 
-      if (paymentOption === "COD") {
+    setIsPlacingOrder(true);
+    try {
+      if (paymentOption === 'COD') {
         const { data } = await axios.post("/api/v1/order/cod", {
+          userId: user._id,
           items: cartArray.map((item) => ({ product: item._id, quantity: item.quantity })),
           address: selectedAddress._id,
         });
@@ -141,11 +87,55 @@ function Cart() {
           toast.error(data.message);
         }
       } else {
-        await displayRazorpay();
+        const res = await loadRazorpay();
+        if (!res) {
+          toast.error("Razorpay SDK failed to load.");
+          return;
+        }
+
+        const { data } = await axios.post("/api/v1/order/razor", {
+          userId: user._id,
+          items: cartArray.map((item) => ({
+            product: item._id,
+            quantity: item.quantity,
+          })),
+          address: selectedAddress._id,
+        });
+
+        if (data.success) {
+          const options = {
+            key: import.meta.env.VITE_RAZORPAY_KEY_ID,
+            amount: data.amount,
+            currency: data.currency,
+            name: "Quick-Kart",
+            description: "Order Payment",
+            order_id: data.orderId,
+            handler: function (response) {
+              toast.success("Payment Successful!");
+              setCartItems({});
+              navigate("/my-orders");
+            },
+            prefill: {
+              name: user.name,
+              email: user.email,
+            },
+            theme: {
+              color: "#3399cc",
+            },
+          };
+
+          const razor = new window.Razorpay(options);
+          razor.on("payment.failed", function () {
+            toast.error("Payment failed. Please try again.");
+          });
+          razor.open();
+        }
       }
     } catch (error) {
       console.log(error.message);
-      toast.error("Something went wrong, please try again later.");
+      toast.error(error.response?.data?.message || "Something went wrong");
+    } finally {
+      setIsPlacingOrder(false);
     }
   };
 
@@ -161,9 +151,35 @@ function Cart() {
     }
   }, [user]);
 
+  if (isCartLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
+          <p className="mt-4 text-lg">Loading your cart...</p>
+        </div>
+      </div>
+    );
+  }
+
   return products.length > 0 && cartItems ? (
-    <div className="flex flex-col md:flex-row mt-16">
-      {/* Left side - Cart items */}
+    <div className="flex flex-col md:flex-row mt-16 relative">
+      {/* Loading overlay */}
+      {(isLoading || isAddressLoading || isPlacingOrder) && (
+        <div className="fixed inset-0 bg-black bg-opacity-30 z-50 flex items-center justify-center">
+          <div className="bg-white p-6 rounded-lg shadow-xl text-center">
+            <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
+            <p className="mt-4">
+              {isPlacingOrder 
+                ? paymentOption === "COD" 
+                  ? "Placing your order..." 
+                  : "Processing payment..."
+                : "Loading..."}
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="flex-1 max-w-4xl">
         <h1 className="text-3xl font-medium mb-6">
           Shopping Cart{" "}
@@ -205,11 +221,14 @@ function Cart() {
                       value={cartItems[product._id]}
                       onChange={(e) => updateCartItem(product._id, Number(e.target.value))}
                       className="outline-none"
+                      disabled={isPlacingOrder}
                     >
                       {Array(cartItems[product._id] > 9 ? cartItems[product._id] : 9)
                         .fill("")
                         .map((_, index) => (
-                          <option key={index} value={index + 1}>{index + 1}</option>
+                          <option key={index} value={index + 1}>
+                            {index + 1}
+                          </option>
                         ))}
                     </select>
                   </div>
@@ -222,6 +241,7 @@ function Cart() {
             <button
               onClick={() => removeFromCart(product._id)}
               className="cursor-pointer mx-auto"
+              disabled={isPlacingOrder}
             >
               <img
                 src={assets.remove_icon}
@@ -238,6 +258,7 @@ function Cart() {
             scrollTo(0, 0);
           }}
           className="group cursor-pointer flex items-center mt-8 gap-2 text-primary font-medium"
+          disabled={isPlacingOrder}
         >
           <img
             src={assets.arrow_right_icon_colored}
@@ -248,7 +269,7 @@ function Cart() {
         </button>
       </div>
 
-      {/* Right Side - Order Summary */}
+      {/* Right Side */}
       <div className="max-w-[360px] w-full bg-gray-100/40 p-5 max-md:mt-16 border border-gray-300/70">
         <h2 className="text-xl md:text-xl font-medium">Order Summary</h2>
         <hr className="border-gray-300 my-5" />
@@ -259,16 +280,17 @@ function Cart() {
             <p className="text-gray-500">
               {selectedAddress
                 ? `${selectedAddress.street}, ${selectedAddress.city}, ${selectedAddress.state}, ${selectedAddress.country}`
-                : "No address found"}
+                : isAddressLoading ? "Loading addresses..." : "No address found"}
             </p>
             <button
               onClick={() => setShowAddress(!showAddress)}
               className="hover:underline text-primary cursor-pointer"
+              disabled={isAddressLoading || isPlacingOrder}
             >
-              Change
+              {isAddressLoading ? "Loading..." : "Change"}
             </button>
             {showAddress && (
-              <div className="absolute top-8 py-1 bg-white border border-gray-300 text-sm w-full">
+              <div className="absolute top-8 py-1 bg-white border border-gray-300 text-sm w-full z-10">
                 {addresses.map((address, index) => (
                   <p
                     key={index}
@@ -276,7 +298,7 @@ function Cart() {
                       setShowAddress(false);
                       setSelectedAddress(address);
                     }}
-                    className="text-gray-500 p-2 hover:bg-gray-100"
+                    className="text-gray-500 p-2 hover:bg-gray-100 cursor-pointer"
                   >
                     {address.street}, {address.city}, {address.state}, {address.country}
                   </p>
@@ -298,6 +320,7 @@ function Cart() {
           <select
             onChange={(e) => setPaymentOption(e.target.value)}
             className="w-full border border-gray-300 bg-white px-3 py-2 mt-2 outline-none"
+            disabled={isPlacingOrder}
           >
             <option value="COD">Cash On Delivery</option>
             <option value="Online">Online Payment</option>
@@ -327,13 +350,38 @@ function Cart() {
 
         <button
           onClick={placeOrder}
-          className="w-full py-3 mt-6 cursor-pointer bg-primary text-white font-medium hover:bg-primary-dull transition"
+          disabled={isPlacingOrder || !selectedAddress}
+          className={`w-full py-3 mt-6 cursor-pointer bg-primary text-white font-medium hover:bg-primary-dull transition flex items-center justify-center ${
+            isPlacingOrder ? 'opacity-75' : ''
+          }`}
         >
-          {paymentOption === "COD" ? "Place Order" : "Proceed to checkout"}
+          {isPlacingOrder ? (
+            <>
+              <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              {paymentOption === "COD" ? "Placing Order..." : "Processing Payment..."}
+            </>
+          ) : (
+            paymentOption === "COD" ? "Place Order" : "Proceed to checkout"
+          )}
         </button>
       </div>
     </div>
-  ) : null;
+  ) : (
+    <div className="flex items-center justify-center min-h-screen">
+      <div className="text-center">
+        <p className="text-xl">Your cart is empty</p>
+        <button
+          onClick={() => navigate("/products")}
+          className="mt-4 px-4 py-2 bg-primary text-white rounded hover:bg-primary-dull transition"
+        >
+          Continue Shopping
+        </button>
+      </div>
+    </div>
+  );
 }
 
 export default Cart;

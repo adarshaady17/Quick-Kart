@@ -3,11 +3,10 @@ import { NavLink } from 'react-router-dom'
 import { useAppContext } from '../context/AppContext.jsx'
 import { assets } from '../assets/assets.js'
 import toast from 'react-hot-toast'
-import axios from 'axios'
 
 const Navbar = () => {
     const [open, setOpen] = React.useState(false)
-    const {user,setUser,setShowUserLogin,navigate,setSearchQuery,searchQuery,getCartCount,axios}=useAppContext();
+    const {user,setUser,setShowUserLogin,navigate,setSearchQuery,searchQuery,getCartCount,axios,isLoading,setIsLoading}=useAppContext();
 
 
     const logout=async()=>{
@@ -45,7 +44,6 @@ const Navbar = () => {
             <div className="hidden sm:flex items-center gap-8">
                 <NavLink to='/'>Home</NavLink>
                 <NavLink to='/products'>All product</NavLink>
-                <NavLink to='/'>Contact</NavLink>
 
                 <div className="hidden lg:flex items-center text-sm gap-2 border border-gray-300 px-3 rounded-full">
                     <input onChange={(e)=>setSearchQuery(e.target.value)} className="py-1.5 w-full bg-transparent outline-none placeholder-gray-500" type="text" placeholder="Search products" />

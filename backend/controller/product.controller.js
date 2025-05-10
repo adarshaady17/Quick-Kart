@@ -32,7 +32,7 @@ export const addProduct = async (req, res) => {
     for (let i = 0; i < req.files.length; i += batchSize) {
       const batch = req.files.slice(i, i + batchSize);
       const batchResults = await Promise.all(
-        batch.map(async (item) => {
+        batch.map(async (item) => {   
           try {
             const result = await cloudinary.uploader.upload(item.path, {
               resource_type: 'image',
