@@ -1,7 +1,6 @@
 import express from "express";
 import dotenv from "dotenv";
 import connectDB from "./utils/db.js";
-//import path from "path";
 import cookieParser from "cookie-parser";
 import UserRouter from "./routes/user.routes.js";
 import connectCloudinary from "./utils/cloudinary.js";
@@ -23,23 +22,24 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Increase timeout to 10 minutes (adjust as needed)
 app.use((req, res, next) => {
-  req.setTimeout(10 * 60 * 1000); // 10 minutes
-  res.setTimeout(10 * 60 * 1000); // 10 minutes
+  req.setTimeout(10 * 60 * 1000);
+  res.setTimeout(10 * 60 * 1000); 
   next();
 });
 
-// app.use(express.json());
-// app.use(express.urlencoded({extended:true}));
+
+
 app.use(cookieParser());
 
 app.use(cors({
   origin: process.env.FRONTEND_URL,
   credentials: true,
-  allowedHeaders:['Content-Type','Authorization']
 }));
 
 
 const PORT=process.env.PORT || 5000;
+
+app.get('/',(req,res)=>res.send("API is working"));
 
 app.use("/api/v1/user",UserRouter);
 app.use("/api/v1/seller",SellerRouter);
