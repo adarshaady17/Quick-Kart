@@ -33,8 +33,7 @@ app.use(cookieParser());
 
 app.use(cors({
   origin: process.env.FRONTEND_URL,
-  credentials: false,
-  maxAge:14400,
+  credentials: true
 }));
 
 
