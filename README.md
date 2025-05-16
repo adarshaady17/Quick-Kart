@@ -1,5 +1,9 @@
 # Quick-Kart
 
+***Inportent note***
+Seller login -
+email-  adarsh@gmail.com
+password-  1234
 
 Grocery E-Commerce Website 
 Project Overview
