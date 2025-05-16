@@ -71,8 +71,8 @@ export const verifyOTP = async (req, res) => {
 
     res.cookie("token", token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
+      secure: true, // <-- This is the key
+      sameSite: "None", // <-- Also required for cross-origin requests
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
@@ -171,8 +171,8 @@ export const login = async (req, res) => {
 
     res.cookie("token", token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
+      secure: true, // <-- This is the key
+      sameSite: "None", // <-- Also required for cross-origin requests
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
     
