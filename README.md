@@ -1,7 +1,5 @@
 # Quick-Kart
 
-# Quick-Kart
-
 
 Grocery E-Commerce Website 
 Project Overview
